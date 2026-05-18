@@ -20,6 +20,8 @@ import java.net.Socket;
 public class GameClient extends Application {
     private TextField hostField;
     private TextField portField;
+    private Label statusLabel;
+    private Button connectButton;
 
     public static void main(String[] args) {
         System.setProperty("prism.allowhidpi", "true");
@@ -37,7 +39,10 @@ public class GameClient extends Application {
         portField = new TextField("5000");
         portField.setPromptText("请输入端口");
 
-        Button connectButton = new Button("连接");
+        statusLabel = new Label("输入服务器地址后点击连接");
+        statusLabel.setStyle("-fx-text-fill: #6b4f2a;");
+
+        connectButton = new Button("连接");
         connectButton.setDefaultButton(true);
         connectButton.setOnAction(event -> connect(stage));
 
@@ -47,6 +52,7 @@ public class GameClient extends Application {
                 hostField,
                 new Label("端口"),
                 portField,
+                statusLabel,
                 connectButton
         );
         root.setAlignment(Pos.CENTER);
@@ -69,25 +75,53 @@ public class GameClient extends Application {
             return;
         }
 
-        try {
-            Socket socket = new Socket(host, port);
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-            String colorMessage = String.valueOf(in.readObject());
-            String seedMessage = String.valueOf(in.readObject());
-            String turnMessage = String.valueOf(in.readObject());
-            String color = colorMessage.contains("RED") ? "RED" : "BLACK";
-            long seed = Long.parseLong(seedMessage.substring(seedMessage.indexOf(':') + 1));
-            boolean initialTurn = Boolean.parseBoolean(turnMessage.substring(turnMessage.indexOf(':') + 1));
+        connectButton.setDisable(true);
+        hostField.setDisable(true);
+        portField.setDisable(true);
+        statusLabel.setText("正在连接服务器...");
 
-            GameApp.configure(socket, in, out, color, seed, initialTurn);
+        Thread thread = new Thread(() -> {
+            try {
+                Socket socket = new Socket(host, port);
+                Platform.runLater(() -> statusLabel.setText("已连接服务器，等待另一位玩家加入..."));
 
-            Stage gameStage = new Stage();
-            new GameApp().start(gameStage);
-            connectStage.close();
-        } catch (Exception e) {
-            showError("连接失败: " + e.getMessage());
-        }
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+                String colorMessage = String.valueOf(in.readObject());
+                String seedMessage = String.valueOf(in.readObject());
+                String turnMessage = String.valueOf(in.readObject());
+                String color = colorMessage.contains("RED") ? "RED" : "BLACK";
+                long seed = Long.parseLong(seedMessage.substring(seedMessage.indexOf(':') + 1));
+                boolean initialTurn = Boolean.parseBoolean(turnMessage.substring(turnMessage.indexOf(':') + 1));
+
+                Platform.runLater(() -> {
+                    try {
+                        statusLabel.setText("匹配成功，正在进入棋盘...");
+                        GameApp.configure(socket, in, out, color, seed, initialTurn);
+                        Stage gameStage = new Stage();
+                        new GameApp().start(gameStage);
+                        connectStage.close();
+                    } catch (Exception e) {
+                        restoreInputState();
+                        showError("打开棋盘失败: " + e.getMessage());
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    restoreInputState();
+                    showError("连接失败: " + e.getMessage());
+                });
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void restoreInputState() {
+        connectButton.setDisable(false);
+        hostField.setDisable(false);
+        portField.setDisable(false);
+        statusLabel.setText("输入服务器地址后点击连接");
     }
 
     private void showError(String message) {

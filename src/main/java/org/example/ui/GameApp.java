@@ -40,6 +40,14 @@ public class GameApp extends Application {
     private static long seedRef;
     private static boolean initialTurnRef;
 
+    private static final double BOARD_WIDTH = 760;
+    private static final double BOARD_HEIGHT = 840;
+    private static final double MARGIN_X = 70;
+    private static final double MARGIN_Y = 60;
+    private static final double CELL_X = (BOARD_WIDTH - 2 * MARGIN_X) / 8.0;
+    private static final double CELL_Y = (BOARD_HEIGHT - 2 * MARGIN_Y) / 9.0;
+    private static final double PIECE_RADIUS = 24;
+
     public static void configure(Socket socket, ObjectInputStream input, ObjectOutputStream output,
                                  String color, long seed, boolean initialTurn) {
         socketRef = socket;
@@ -49,14 +57,6 @@ public class GameApp extends Application {
         seedRef = seed;
         initialTurnRef = initialTurn;
     }
-
-    private static final double BOARD_WIDTH = 760;
-    private static final double BOARD_HEIGHT = 840;
-    private static final double MARGIN_X = 70;
-    private static final double MARGIN_Y = 60;
-    private static final double CELL_X = (BOARD_WIDTH - 2 * MARGIN_X) / 8.0;
-    private static final double CELL_Y = (BOARD_HEIGHT - 2 * MARGIN_Y) / 9.0;
-    private static final double PIECE_RADIUS = 24;
 
     private final Canvas canvas = new Canvas(BOARD_WIDTH, BOARD_HEIGHT);
     private final Label statusLabel = new Label();
@@ -69,9 +69,13 @@ public class GameApp extends Application {
     private Piece.Side mySide;
     private int selectedRow = -1;
     private int selectedCol = -1;
-    private boolean myTurn = false;
-    private boolean gameOver = false;
-    private boolean inCheck = false;
+    private int lastMoveSourceRow = -1;
+    private int lastMoveSourceCol = -1;
+    private int lastMoveTargetRow = -1;
+    private int lastMoveTargetCol = -1;
+    private boolean myTurn;
+    private boolean gameOver;
+    private boolean inCheck;
     private Stage primaryStage;
 
     @Override
@@ -126,12 +130,12 @@ public class GameApp extends Application {
         root.setPadding(new Insets(12));
         root.setStyle("-fx-background-color: linear-gradient(to bottom, #f8edd8, #ead2a5);");
 
-        stage.setTitle("揭棋对弈 - " + colorRef);
+        stage.setTitle("揭棋对局 - " + colorRef);
         stage.setScene(new Scene(root));
         stage.setOnCloseRequest(event -> closeResources());
         stage.show();
 
-        updateStatus("已连接，执子方：" + ("RED".equals(colorRef) ? "红方" : "黑方"));
+        updateStatus("已连接，执棋方：" + ("RED".equals(colorRef) ? "红方" : "黑方"));
         redraw();
         startReceiver();
     }
@@ -257,7 +261,7 @@ public class GameApp extends Application {
     private void handleServerMessage(String message) {
         if (message.startsWith("ERROR:")) {
             myTurn = true;
-            updateStatus("操作无效：" + message.substring(6));
+            updateStatus("操作无效: " + message.substring(6));
             redraw();
             return;
         }
@@ -305,6 +309,7 @@ public class GameApp extends Application {
         if (source == null) {
             return null;
         }
+        rememberLastMove(sr, sc, dr, dc);
         if (sr == dr && sc == dc) {
             source.setRevealed(true);
             return "翻子: " + move.getSource() + " -> " + source.shortName();
@@ -359,6 +364,7 @@ public class GameApp extends Application {
                 gc.fillOval(x(boardToViewCol(c)) - 3, y(boardToViewRow(r)) - 3, 6, 6);
             }
         }
+        drawLastMoveMarker(gc);
         gc.setFill(Color.web("#ff7a00"));
         for (int[] p : legalTargets) {
             gc.fillOval(x(boardToViewCol(p[1])) - 7, y(boardToViewRow(p[0])) - 7, 14, 14);
@@ -385,12 +391,38 @@ public class GameApp extends Application {
                     gc.setLineWidth(4);
                     gc.strokeOval(cx - PIECE_RADIUS - 5, cy - PIECE_RADIUS - 5, PIECE_RADIUS * 2 + 10, PIECE_RADIUS * 2 + 10);
                 }
+                if (lastMoveTargetRow == r && lastMoveTargetCol == c) {
+                    gc.setStroke(Color.web("#ffd84d"));
+                    gc.setLineWidth(4);
+                    gc.strokeOval(cx - PIECE_RADIUS - 9, cy - PIECE_RADIUS - 9, PIECE_RADIUS * 2 + 18, PIECE_RADIUS * 2 + 18);
+                }
 
                 gc.setFill(Color.web("#fff9ec"));
                 gc.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 20));
                 gc.fillText(piece.shortName(), cx - 10, cy + 7);
             }
         }
+    }
+
+    private void drawLastMoveMarker(GraphicsContext gc) {
+        if (lastMoveSourceRow < 0 || lastMoveSourceCol < 0) {
+            return;
+        }
+        double sx = x(boardToViewCol(lastMoveSourceCol));
+        double sy = y(boardToViewRow(lastMoveSourceRow));
+        gc.setStroke(Color.web("#ffd84d"));
+        gc.setLineWidth(3);
+        gc.strokeRect(sx - PIECE_RADIUS - 7, sy - PIECE_RADIUS - 7, PIECE_RADIUS * 2 + 14, PIECE_RADIUS * 2 + 14);
+
+        if (lastMoveTargetRow == lastMoveSourceRow && lastMoveTargetCol == lastMoveSourceCol) {
+            return;
+        }
+
+        double tx = x(boardToViewCol(lastMoveTargetCol));
+        double ty = y(boardToViewRow(lastMoveTargetRow));
+        gc.setStroke(Color.web("#ff9f1a"));
+        gc.setLineWidth(3);
+        gc.strokeLine(sx, sy, tx, ty);
     }
 
     private void drawLabels(GraphicsContext gc) {
@@ -430,6 +462,13 @@ public class GameApp extends Application {
 
     private void updateStatus(String text) {
         statusLabel.setText(text);
+    }
+
+    private void rememberLastMove(int sr, int sc, int dr, int dc) {
+        lastMoveSourceRow = sr;
+        lastMoveSourceCol = sc;
+        lastMoveTargetRow = dr;
+        lastMoveTargetCol = dc;
     }
 
     private void showError(String message) {
