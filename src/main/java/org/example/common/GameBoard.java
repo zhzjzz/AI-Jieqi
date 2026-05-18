@@ -91,4 +91,24 @@ public class GameBoard {
     public String coord(int row, int col) {
         return String.valueOf((char) ('a' + col)) + row;
     }
+
+    public int positionType(int row, int col) {
+        if (row == 0 || row == 9) {
+            return switch (col) {
+                case 0, 8 -> 1;
+                case 1, 7 -> 2;
+                case 2, 6 -> 6;
+                case 3, 5 -> 5;
+                case 4 -> 0;
+                default -> -1;
+            };
+        }
+        if (row == 2 || row == 7) {
+            return (col == 1 || col == 7) ? 3 : -1;
+        }
+        if (row == 3 || row == 6) {
+            return (col % 2 == 0) ? 4 : -1;
+        }
+        return -1;
+    }
 }

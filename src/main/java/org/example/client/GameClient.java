@@ -1,29 +1,98 @@
 package org.example.client;
 
-import org.example.ui.GameApp;
-
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import org.example.ui.GameApp;
 
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-public class GameClient {
+public class GameClient extends Application {
+    private TextField hostField;
+    private TextField portField;
+
     public static void main(String[] args) {
-        String host = args.length > 0 ? args[0] : "127.0.0.1";
-        int port = args.length > 1 ? Integer.parseInt(args[1]) : 5000;
+        System.setProperty("prism.allowhidpi", "true");
+        launch(args);
+    }
+
+    @Override
+    public void start(Stage stage) {
+        Label title = new Label("连接服务器");
+        title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
+
+        hostField = new TextField("127.0.0.1");
+        hostField.setPromptText("请输入服务器 IP");
+
+        portField = new TextField("5000");
+        portField.setPromptText("请输入端口");
+
+        Button connectButton = new Button("连接");
+        connectButton.setDefaultButton(true);
+        connectButton.setOnAction(event -> connect(stage));
+
+        VBox root = new VBox(12,
+                title,
+                new Label("服务器 IP"),
+                hostField,
+                new Label("端口"),
+                portField,
+                connectButton
+        );
+        root.setAlignment(Pos.CENTER);
+        root.setPadding(new Insets(24));
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #f8edd8, #ead2a5);");
+
+        stage.setTitle("连接揭棋服务器");
+        stage.setScene(new Scene(root, 360, 280));
+        stage.show();
+    }
+
+    private void connect(Stage connectStage) {
+        String host = hostField.getText().trim();
+        String portText = portField.getText().trim();
+        int port;
+        try {
+            port = Integer.parseInt(portText);
+        } catch (NumberFormatException e) {
+            showError("端口必须是数字");
+            return;
+        }
+
         try {
             Socket socket = new Socket(host, port);
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
             String colorMessage = String.valueOf(in.readObject());
             String seedMessage = String.valueOf(in.readObject());
+            String turnMessage = String.valueOf(in.readObject());
             String color = colorMessage.contains("RED") ? "RED" : "BLACK";
             long seed = Long.parseLong(seedMessage.substring(seedMessage.indexOf(':') + 1));
-            GameApp.configure(socket, in, out, color, seed);
-            Application.launch(GameApp.class);
+            boolean initialTurn = Boolean.parseBoolean(turnMessage.substring(turnMessage.indexOf(':') + 1));
+
+            GameApp.configure(socket, in, out, color, seed, initialTurn);
+
+            Stage gameStage = new Stage();
+            new GameApp().start(gameStage);
+            connectStage.close();
         } catch (Exception e) {
-            e.printStackTrace();
+            showError("连接失败: " + e.getMessage());
         }
+    }
+
+    private void showError(String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, message);
+        alert.setHeaderText(null);
+        alert.showAndWait();
     }
 }

@@ -51,15 +51,18 @@ public class GameServer {
         public void run() {
             try (Socket red = redSocket; Socket black = blackSocket;
                  ObjectOutputStream redOut = new ObjectOutputStream(red.getOutputStream());
-                ObjectOutputStream blackOut = new ObjectOutputStream(black.getOutputStream());
-                ObjectInputStream redIn = new ObjectInputStream(red.getInputStream());
-                ObjectInputStream blackIn = new ObjectInputStream(black.getInputStream())) {
+                 ObjectOutputStream blackOut = new ObjectOutputStream(black.getOutputStream());
+                 ObjectInputStream redIn = new ObjectInputStream(red.getInputStream());
+                 ObjectInputStream blackIn = new ObjectInputStream(black.getInputStream())) {
 
                 redOut.writeObject("COLOR:RED");
                 redOut.writeObject("SEED:" + seed);
+                redOut.writeObject("YOUR_TURN:true");
                 redOut.flush();
+
                 blackOut.writeObject("COLOR:BLACK");
                 blackOut.writeObject("SEED:" + seed);
+                blackOut.writeObject("YOUR_TURN:false");
                 blackOut.flush();
 
                 Piece.Side turn = Piece.Side.RED;
@@ -71,7 +74,25 @@ public class GameServer {
                         continue;
                     }
                     if (handleMove(move, turn, currentOut, redOut, blackOut)) {
-                        turn = turn == Piece.Side.RED ? Piece.Side.BLACK : Piece.Side.RED;
+                        Piece.Side nextTurn = turn == Piece.Side.RED ? Piece.Side.BLACK : Piece.Side.RED;
+                        if (ruleEngine.isGeneralCaptured(board, Piece.Side.RED)) {
+                            notifyResult(redOut, blackOut, "WINNER:BLACK");
+                            break;
+                        }
+                        if (ruleEngine.isGeneralCaptured(board, Piece.Side.BLACK)) {
+                            notifyResult(redOut, blackOut, "WINNER:RED");
+                            break;
+                        }
+                        if (!ruleEngine.hasAnyLegalMove(board, nextTurn)) {
+                            notifyResult(redOut, blackOut, "WINNER:" + (nextTurn == Piece.Side.RED ? "BLACK" : "RED"));
+                            break;
+                        }
+                        turn = nextTurn;
+                        sendCheckState(redOut, blackOut);
+                        redOut.writeObject("YOUR_TURN:" + (turn == Piece.Side.RED));
+                        redOut.flush();
+                        blackOut.writeObject("YOUR_TURN:" + (turn == Piece.Side.BLACK));
+                        blackOut.flush();
                     }
                 }
             } catch (Exception e) {
@@ -100,10 +121,6 @@ public class GameServer {
                 source.setRevealed(true);
                 move.setType(source.getType());
             } else {
-                Piece target = board.get(dr, dc);
-                if (target != null && target.getSide() != source.getSide()) {
-                    board.set(dr, dc, null);
-                }
                 board.set(dr, dc, source);
                 board.set(sr, sc, null);
                 source.setRevealed(true);
@@ -114,6 +131,20 @@ public class GameServer {
             blackOut.writeObject(move);
             blackOut.flush();
             return true;
+        }
+
+        private void notifyResult(ObjectOutputStream redOut, ObjectOutputStream blackOut, String message) throws Exception {
+            redOut.writeObject(message);
+            redOut.flush();
+            blackOut.writeObject(message);
+            blackOut.flush();
+        }
+
+        private void sendCheckState(ObjectOutputStream redOut, ObjectOutputStream blackOut) throws Exception {
+            redOut.writeObject("CHECK:" + ruleEngine.isInCheck(board, Piece.Side.RED));
+            redOut.flush();
+            blackOut.writeObject("CHECK:" + ruleEngine.isInCheck(board, Piece.Side.BLACK));
+            blackOut.flush();
         }
     }
 }
