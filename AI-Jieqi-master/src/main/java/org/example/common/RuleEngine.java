@@ -15,12 +15,11 @@ public class RuleEngine {
             return false;
         }
 
+        boolean flipOnly = sr == dr && sc == dc;
         Piece target = board.get(dr, dc);
-        if (target != null && target.getSide() == side) {
+        if (!flipOnly && target != null && target.getSide() == side) {
             return false;
         }
-
-        boolean flipOnly = sr == dr && sc == dc;
         if (flipOnly && source.isRevealed()) {
             return false;
         }
