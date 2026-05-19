@@ -63,3 +63,34 @@ mvn -q exec:java -Dexec.mainClass=org.example.client.ClientMain -Dexec.args="127
 ## 说明
 
 当前版本是可运行的联机骨架，适合继续扩展完整揭棋规则、胜负判定和 AI 博弈模块。
+
+## DeepSeek AI 客户端
+
+AI 客户端可以作为一个无 GUI 的 Socket 客户端加入现有服务器。它会先用本地规则引擎生成合法候选走法，再调用 DeepSeek API 选择候选；如果没有配置 API key 或 API 返回不可用结果，会使用本地启发式兜底。
+
+### 环境变量
+
+```powershell
+$env:DEEPSEEK_API_KEY="你的 DeepSeek API Key"
+$env:DEEPSEEK_MODEL="deepseek-v4-flash"
+$env:DEEPSEEK_TIMEOUT_MILLIS="8000"
+$env:AI_MAX_CANDIDATES="40"
+```
+
+不设置 `DEEPSEEK_API_KEY` 时，AI 会自动进入本地启发式模式。
+
+### 启动方式
+
+先启动服务器：
+
+```powershell
+mvn -q exec:java -Dexec.mainClass=org.example.server.ServerMain
+```
+
+再启动真人客户端或另一个 AI 客户端。启动 AI 客户端：
+
+```powershell
+mvn -q exec:java -Dexec.mainClass=org.example.ai.AiClientMain -Dexec.args="127.0.0.1 5000"
+```
+
+AI 每步会输出一行决策日志，包含候选 ID、走法、来源、耗时和兜底原因。
