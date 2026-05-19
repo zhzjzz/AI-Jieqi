@@ -10,4 +10,7 @@ public record CandidateMove(
         String targetLabel,
         int heuristicScore
 ) {
+    public CandidateMove withHeuristicScore(int score) {
+        return new CandidateMove(id, move, kind, pieceLabel, targetLabel, score);
+    }
 }
