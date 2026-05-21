@@ -1,5 +1,0 @@
-# Copy this file to ai.local.properties and fill in your local values.
-deepseek.api.key=replace-with-your-deepseek-key
-deepseek.api.model=deepseek-v4-flash
-deepseek.api.timeoutMillis=20000
-deepseek.ai.maxCandidates=40
