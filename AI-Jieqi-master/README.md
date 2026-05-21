@@ -79,6 +79,19 @@ $env:AI_MAX_CANDIDATES="40"
 
 不设置 `DEEPSEEK_API_KEY` 时，AI 会自动进入本地启发式模式。
 
+### 本地配置文件
+
+也可以在项目根目录放一个 `ai.local.properties` 文件，AI 客户端启动时会自动读取它。仓库里提供了示例文件 [ai.local.properties.example](</C:/Users/stay g/Documents/New project 2/AI-Jieqi-master/ai.local.properties.example>)。
+
+```properties
+deepseek.api.key=你的 DeepSeek API Key
+deepseek.api.model=deepseek-v4-flash
+deepseek.api.timeoutMillis=20000
+deepseek.ai.maxCandidates=40
+```
+
+`ai.local.properties` 已加入 `.gitignore`，不会默认提交。
+
 ### 启动方式
 
 先启动服务器：

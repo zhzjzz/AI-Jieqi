@@ -31,4 +31,22 @@ class AiConfigTest {
         assertEquals("prop-key", config.apiKey());
         assertTrue(config.hasApiKey());
     }
+
+    @Test
+    void fileStylePropertiesProvideValues() {
+        AiConfig config = AiConfig.from(
+                Map.of(),
+                Map.of(
+                        "deepseek.api.key", "file-key",
+                        "deepseek.api.model", "file-model",
+                        "deepseek.api.timeoutMillis", "12000",
+                        "deepseek.ai.maxCandidates", "24"
+                )
+        );
+
+        assertEquals("file-model", config.model());
+        assertEquals("file-key", config.apiKey());
+        assertEquals(12000, config.timeoutMillis());
+        assertEquals(24, config.maxCandidates());
+    }
 }

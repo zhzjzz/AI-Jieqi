@@ -1,6 +1,11 @@
 package org.example.ai;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
 
 public record AiConfig(
@@ -11,7 +16,7 @@ public record AiConfig(
         int maxCandidates
 ) {
     public static AiConfig load() {
-        return from(System.getenv(), systemProperties());
+        return from(System.getenv(), mergeProperties(localFileProperties(), systemProperties()));
     }
 
     static AiConfig from(Map<String, String> env, Map<String, String> props) {
@@ -32,6 +37,32 @@ public record AiConfig(
                 .collect(Collectors.toMap(
                         entry -> String.valueOf(entry.getKey()),
                         entry -> String.valueOf(entry.getValue())
+                ));
+    }
+
+    private static Map<String, String> localFileProperties() {
+        Path path = Path.of("ai.local.properties");
+        if (!Files.exists(path)) {
+            return Map.of();
+        }
+
+        Properties properties = new Properties();
+        try (InputStream inputStream = Files.newInputStream(path)) {
+            properties.load(inputStream);
+        } catch (IOException e) {
+            return Map.of();
+        }
+
+        return properties.stringPropertyNames().stream()
+                .collect(Collectors.toMap(name -> name, properties::getProperty));
+    }
+
+    private static Map<String, String> mergeProperties(Map<String, String> base, Map<String, String> overrides) {
+        return java.util.stream.Stream.concat(base.entrySet().stream(), overrides.entrySet().stream())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (ignored, replacement) -> replacement
                 ));
     }
 
