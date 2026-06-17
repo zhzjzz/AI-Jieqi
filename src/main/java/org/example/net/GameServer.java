@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 public class GameServer extends WebSocketServer {
     private static final int DEFAULT_PORT = 5000;
     private static final long TURN_TIMEOUT_SECONDS = 60;
+    private static final int REPEATED_CHECK_LIMIT = 3;
 
     private final Map<WebSocket, PlayerConnection> players = new HashMap<>();
     private final Map<String, Account> accounts = new HashMap<>();
@@ -254,6 +255,8 @@ public class GameServer extends WebSocketServer {
         private Piece.Side turn = Piece.Side.RED;
         private boolean closed;
         private ScheduledFuture<?> timeoutTask;
+        private final Map<String, Integer> checkingPositionCounts = new HashMap<>();
+        private Piece.Side repeatedCheckingSide;
 
         private Room(String roomId, PlayerConnection red, PlayerConnection black, GameBoard board) {
             this.roomId = roomId;
@@ -290,6 +293,12 @@ public class GameServer extends WebSocketServer {
             if (winner != null) {
                 PlayerConnection winnerPlayer = winner == Piece.Side.RED ? red : black;
                 broadcast(JsonProtocol.gameOver(winner, "checkmate", winnerPlayer.userId));
+                close();
+                return;
+            }
+            if (isPerpetualCheckViolation(player.side)) {
+                PlayerConnection winnerPlayer = opponent(player);
+                broadcast(JsonProtocol.gameOver(winnerPlayer.side, "resign", winnerPlayer.userId, "perpetual_check"));
                 close();
                 return;
             }
@@ -345,6 +354,49 @@ public class GameServer extends WebSocketServer {
             return null;
         }
 
+        private boolean isPerpetualCheckViolation(Piece.Side checkingSide) {
+            Piece.Side checkedSide = opposite(checkingSide);
+            if (!ruleEngine.isInCheck(board, checkedSide)) {
+                if (repeatedCheckingSide == checkingSide) {
+                    checkingPositionCounts.clear();
+                    repeatedCheckingSide = null;
+                }
+                return false;
+            }
+
+            if (repeatedCheckingSide != checkingSide) {
+                checkingPositionCounts.clear();
+                repeatedCheckingSide = checkingSide;
+            }
+
+            String signature = boardSignature(checkedSide);
+            int count = checkingPositionCounts.merge(signature, 1, Integer::sum);
+            return count >= REPEATED_CHECK_LIMIT;
+        }
+
+        private String boardSignature(Piece.Side nextSide) {
+            StringBuilder builder = new StringBuilder();
+            builder.append("next=").append(nextSide).append(';');
+            for (int row = 0; row < GameBoard.ROWS; row++) {
+                for (int col = 0; col < GameBoard.COLS; col++) {
+                    Piece piece = board.get(row, col);
+                    if (piece == null) {
+                        builder.append('.');
+                        continue;
+                    }
+                    builder.append(piece.getSide() == Piece.Side.RED ? 'R' : 'B')
+                            .append(piece.getType())
+                            .append(piece.isRevealed() ? '1' : '0');
+                }
+                builder.append('/');
+            }
+            return builder.toString();
+        }
+
+        private Piece.Side opposite(Piece.Side side) {
+            return side == Piece.Side.RED ? Piece.Side.BLACK : Piece.Side.RED;
+        }
+
         private PlayerConnection opponent(PlayerConnection player) {
             return player == red ? black : red;
         }
@@ -360,7 +412,7 @@ public class GameServer extends WebSocketServer {
             }
             PlayerConnection winner = opponent(disconnected);
             if (winner != null && winner.conn.isOpen()) {
-                send(winner, JsonProtocol.gameOver(winner.side, "resign", winner.userId));
+                send(winner, JsonProtocol.gameOver(winner.side, "resign", winner.userId, "disconnect"));
             }
             close();
         }

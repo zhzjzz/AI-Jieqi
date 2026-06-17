@@ -28,8 +28,13 @@ public final class JsonProtocol {
 
     public static Move toMove(JsonObject json) {
         String source = string(json, "fromX", "a") + integer(json, "fromY", 0);
-        String destination = string(json, "toX", "a") + integer(json, "toY", 0);
-        return new Move(source, destination, null, System.currentTimeMillis());
+        String requestedDestination = string(json, "toX", "a") + integer(json, "toY", 0);
+        boolean flip = json.has("isFlip") && !json.get("isFlip").isJsonNull()
+                ? json.get("isFlip").getAsBoolean()
+                : source.equals(requestedDestination);
+        Move move = new Move(source, flip ? source : requestedDestination, null, System.currentTimeMillis());
+        move.setFlip(flip);
+        return move;
     }
 
     public static JsonObject moveMessage(Move move) {
@@ -71,7 +76,9 @@ public final class JsonProtocol {
                 cell.addProperty("x", String.valueOf((char) ('a' + col)));
                 cell.addProperty("y", row);
                 cell.addProperty("piece", pieceName(piece.getType()));
-                cell.addProperty("color", colorOf(piece.getSide()));
+                if (includeExtensions()) {
+                    cell.addProperty("color", colorOf(piece.getSide()));
+                }
                 cell.addProperty("visible", piece.isRevealed());
                 cells.add(cell);
             }
@@ -143,10 +150,17 @@ public final class JsonProtocol {
     }
 
     public static JsonObject gameOver(Piece.Side winner, String reason, String winnerId) {
+        return gameOver(winner, reason, winnerId, null);
+    }
+
+    public static JsonObject gameOver(Piece.Side winner, String reason, String winnerId, String detailReason) {
         JsonObject json = message("gameOver");
         json.addProperty("winner", colorOf(winner));
         json.addProperty("reason", reason);
         json.addProperty("winnerId", winnerId);
+        if (detailReason != null && includeExtensions()) {
+            json.addProperty("detailReason", detailReason);
+        }
         return json;
     }
 
@@ -209,7 +223,11 @@ public final class JsonProtocol {
     }
 
     private static boolean isFlip(Move move) {
-        return move.getSource() != null && move.getSource().equals(move.getDestination());
+        return move.isFlip();
+    }
+
+    private static boolean includeExtensions() {
+        return !Boolean.getBoolean("protocol.strictPublic");
     }
 
     private static String x(String coord) {

@@ -9,6 +9,7 @@ public class Move implements Serializable {
     private String destination;
     private Integer type;
     private long turnStartTime;
+    private Boolean flip;
 
     public Move() {
     }
@@ -50,5 +51,20 @@ public class Move implements Serializable {
 
     public void setTurnStartTime(long turnStartTime) {
         this.turnStartTime = turnStartTime;
+    }
+
+    public boolean isFlip() {
+        if (flip != null) {
+            return flip;
+        }
+        return source != null && source.equals(destination);
+    }
+
+    public Boolean getFlip() {
+        return flip;
+    }
+
+    public void setFlip(Boolean flip) {
+        this.flip = flip;
     }
 }

@@ -10,8 +10,9 @@ import java.util.Comparator;
 import java.util.List;
 
 public class MoveSearchEngine {
-    private static final int SEARCH_DEPTH = 2;
+    private static final int SEARCH_DEPTH = 3;
     private static final int BRANCH_LIMIT = 12;
+    private static final int WIN_SCORE = 1_000_000;
     private static final int NEG_INF = Integer.MIN_VALUE / 4;
     private static final int POS_INF = Integer.MAX_VALUE / 4;
 
@@ -36,21 +37,22 @@ public class MoveSearchEngine {
         for (CandidateMove candidate : ordered) {
             GameBoard next = copyBoard(board);
             applyMove(next, candidate.move());
-            int score = -negamax(next, opposite(side), side, SEARCH_DEPTH - 1, NEG_INF, POS_INF);
+            int score = alphaBeta(next, opposite(side), side, SEARCH_DEPTH - 1, NEG_INF, POS_INF);
             analyses.add(new SearchAnalysis(candidate, score));
         }
         analyses.sort(Comparator.comparingInt(SearchAnalysis::searchScore).reversed()
+                .thenComparing(analysis -> analysis.candidate().heuristicScore(), Comparator.reverseOrder())
                 .thenComparing(analysis -> analysis.candidate().id()));
         return analyses;
     }
 
-    private int negamax(GameBoard board, Piece.Side sideToMove, Piece.Side perspective, int depth, int alpha, int beta) {
+    private int alphaBeta(GameBoard board, Piece.Side sideToMove, Piece.Side perspective, int depth, int alpha, int beta) {
         Piece.Side enemy = opposite(perspective);
         if (ruleEngine.isGeneralCaptured(board, perspective)) {
-            return -1_000_000 + depth;
+            return -WIN_SCORE + depth;
         }
         if (ruleEngine.isGeneralCaptured(board, enemy)) {
-            return 1_000_000 - depth;
+            return WIN_SCORE - depth;
         }
         if (depth <= 0) {
             return evaluator.evaluate(board, perspective);
@@ -58,21 +60,41 @@ public class MoveSearchEngine {
 
         List<CandidateMove> candidates = heuristicSelector.score(board, sideToMove, moveGenerator.generate(board, sideToMove));
         if (candidates.isEmpty()) {
-            return sideToMove == perspective ? -1_000_000 + depth : 1_000_000 - depth;
+            return sideToMove == perspective ? -WIN_SCORE + depth : WIN_SCORE - depth;
         }
 
-        int best = NEG_INF;
         int limit = Math.min(BRANCH_LIMIT, candidates.size());
+        if (sideToMove == perspective) {
+            int best = NEG_INF;
+            for (int i = 0; i < limit; i++) {
+                CandidateMove candidate = candidates.get(i);
+                GameBoard next = copyBoard(board);
+                applyMove(next, candidate.move());
+                int score = alphaBeta(next, opposite(sideToMove), perspective, depth - 1, alpha, beta);
+                if (score > best) {
+                    best = score;
+                }
+                if (score > alpha) {
+                    alpha = score;
+                }
+                if (alpha >= beta) {
+                    break;
+                }
+            }
+            return best;
+        }
+
+        int best = POS_INF;
         for (int i = 0; i < limit; i++) {
             CandidateMove candidate = candidates.get(i);
             GameBoard next = copyBoard(board);
             applyMove(next, candidate.move());
-            int score = -negamax(next, opposite(sideToMove), perspective, depth - 1, -beta, -alpha);
-            if (score > best) {
+            int score = alphaBeta(next, opposite(sideToMove), perspective, depth - 1, alpha, beta);
+            if (score < best) {
                 best = score;
             }
-            if (score > alpha) {
-                alpha = score;
+            if (score < beta) {
+                beta = score;
             }
             if (alpha >= beta) {
                 break;

@@ -20,7 +20,7 @@ public class RuleEngine {
             return false;
         }
 
-        boolean flipOnly = sr == dr && sc == dc;
+        boolean flipOnly = move.isFlip();
         if (flipOnly && source.isRevealed()) {
             return false;
         }

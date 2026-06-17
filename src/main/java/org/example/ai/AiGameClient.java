@@ -50,6 +50,8 @@ public class AiGameClient {
                 @Override
                 public void onError(Exception ex) {
                     System.out.println("AI client error: " + ex.getMessage());
+                    System.out.println("Cannot connect to ws://" + host + ":" + port
+                            + ". Start org.example.server.ServerMain first or check the host/port.");
                     done.countDown();
                 }
             };

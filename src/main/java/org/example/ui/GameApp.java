@@ -256,10 +256,12 @@ public class GameApp extends Application {
             myTurn = false;
             Piece.Side winner = JsonProtocol.sideFromColor(JsonProtocol.string(message, "winner", "black"));
             boolean iWin = winner == mySide;
-            updateStatus(iWin ? "对局结束：你获胜了" : "对局结束：你失败了");
-            log("对局结束，胜者：" + winner);
+            String publicReason = JsonProtocol.string(message, "reason", "");
+            String detailReason = JsonProtocol.string(message, "detailReason", publicReason);
+            updateStatus(gameOverStatus(detailReason, iWin));
+            log("对局结束，胜者：" + winner + "，原因：" + detailReason);
             redraw();
-            showGameOverDialog(iWin);
+            showGameOverDialog(iWin, detailReason);
         }
     }
 
@@ -293,7 +295,7 @@ public class GameApp extends Application {
         String loserId = JsonProtocol.string(message, "loserId", "");
         updateStatus("对局结束：玩家 " + loserId + " 超时");
         redraw();
-        showGameOverDialog(false);
+        showGameOverDialog(false, "timeout");
     }
 
     private String applyMove(Move move) {
@@ -486,9 +488,25 @@ public class GameApp extends Application {
         alert.showAndWait();
     }
 
-    private void showGameOverDialog(boolean win) {
+    private String gameOverStatus(String reason, boolean win) {
+        if ("disconnect".equals(reason)) {
+            return win ? "对局结束：对方退出，你赢了" : "对局结束：连接已断开";
+        }
+        if ("perpetual_check".equals(reason)) {
+            return win ? "对局结束：对方长将违规，你赢了" : "对局结束：你长将违规，失败了";
+        }
+        if ("resign".equals(reason)) {
+            return win ? "对局结束：对方认输，你赢了" : "对局结束：你已认输";
+        }
+        if ("timeout".equals(reason)) {
+            return win ? "对局结束：对方超时，你赢了" : "对局结束：你超时了";
+        }
+        return win ? "对局结束：你获胜了" : "对局结束：你失败了";
+    }
+
+    private void showGameOverDialog(boolean win, String reason) {
         ButtonType closeButton = new ButtonType("关闭", ButtonBar.ButtonData.OK_DONE);
-        Alert alert = new Alert(Alert.AlertType.INFORMATION, win ? "恭喜你赢了" : "很遗憾你输了", closeButton);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, gameOverStatus(reason, win), closeButton);
         alert.setHeaderText(null);
         alert.setTitle("对局结束");
         alert.showAndWait();
